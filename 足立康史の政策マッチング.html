@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>足立康史政策マッチング</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans JP',sans-serif;
+            font-weight: 600; /* ExtraBold */
+            background-color: #FBC02D; /* .bg-custom-yellow の色 */
+        }
+        .bg-custom-blue { background-color: #0A4A8D; }
+        .text-custom-blue { color: #0A4A8D; }
+        .border-custom-blue { border-color: #0A4A8D; }
+        .hover\:bg-custom-blue-dark:hover { background-color: #003366; }
+
+        .bg-custom-yellow { background-color: #FBC02D; }
+        .text-custom-yellow { color: #FBC02D; }
+        .border-custom-yellow { border-color: #FBC02D; }
+        .hover\:bg-yellow-400:hover { background-color: #FACC15; }
+
+        .progress-ring__circle--progress {
+            transition: stroke-dashoffset 0.35s;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        .accordion-content {
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+            overflow: hidden;
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        .accordion-content.open {
+            max-height: 2000px;
+            opacity: 1;
+            padding-top: 0.75rem; 
+            padding-bottom: 1rem;
+        }
+        .category-header-content { 
+            position: relative; 
+            z-index: 1; 
+        }
+        /* 見出し用カスタムフォントスタイル */
+        .heading-font {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-weight: 900; /* ExtraBold */
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="text-gray-800">
+
+<div id="app" class="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4">
+
+    <section v-if="activeView === 'top'" class="text-center w-full max-w-lg mx-auto p-6 bg-white rounded-xl shadow-xl">
+        <h1 class="text-3xl sm:text-4xl text-custom-blue mb-6 heading-font">足立康史<br class="sm:hidden">政策マッチ度診断</h1>
+        <p class="text-base sm:text-lg text-gray-700 mb-8 px-2">
+            足立康史の政策に関する考え方の一致度をチェック！
+        </p>
+        <button @click="beginAssessment"
+                class="bg-custom-blue hover:bg-custom-blue-dark text-white font-semibold py-3 px-8 rounded-lg text-lg sm:text-xl shadow-md hover:shadow-lg transition-all duration-150">
+            診断をはじめる
+        </button>
+    </section>
+
+    <section v-if="activeView === 'quiz'" class="w-full max-w-xl mx-auto flex flex-col items-center p-4 sm:p-6 bg-white rounded-xl shadow-xl">
+        <div class="w-full flex justify-start mb-4 h-8">
+            <button v-if="currentInquiryIndex > 0" @click="returnToPreviousInquiry"
+                    class="text-custom-blue hover:text-custom-yellow font-medium text-sm sm:text-base p-2 -ml-2">
+                &lt; 前へ
+            </button>
+        </div>
+
+        <div class="relative w-24 h-24 sm:w-28 sm:h-28 mb-3">
+            <svg class="w-full h-full" viewBox="0 0 100 100">
+                <circle class="text-gray-300 stroke-current" stroke-width="10" cx="50" cy="50" r="40" fill="transparent"></circle>
+                <circle class="text-custom-blue stroke-current progress-ring__circle--progress"
+                        stroke-width="10" stroke-linecap="round" cx="50" cy="50" r="40" fill="transparent"
+                        :stroke-dasharray="progressBarCircumference" :stroke-dashoffset="progressBarOffset">
+                </circle>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-lg sm:text-xl font-semibold text-custom-blue">
+                <span>{{ currentInquiryIndex + 1 }}</span>
+                <hr class="w-8 border-gray-400 my-0.5">
+                <span>{{ policyInquiries.length }}</span>
+            </div>
+        </div>
+        
+        <p class="text-xs sm:text-sm text-gray-500 mb-2 heading-font">分野： {{ policyInquiries[currentInquiryIndex].category }}</p>
+
+        <h2 class="text-lg sm:text-xl md:text-2xl text-gray-800 mb-6 text-center px-2 min-h-[5em] sm:min-h-[4em] flex items-center justify-center">
+            {{ policyInquiries[currentInquiryIndex].text }}
+        </h2>
+
+        <div class="flex justify-between items-center w-full max-w-xs sm:max-w-sm md:max-w-md mb-2 px-1">
+            <span class="text-xs sm:text-sm text-gray-600 text-left">反対</span> <span class="text-xs sm:text-sm text-gray-600 text-center">中立</span> <span class="text-xs sm:text-sm text-gray-600 text-right">賛成</span> </div>
+
+        <div class="grid grid-cols-3 gap-2 sm:gap-3 w-full max-w-xs sm:max-w-sm md:max-w-md px-1 mb-8">
+            <button
+                v-for="optionValue in 3" 
+                :key="optionValue" 
+                @click="handleSelection(optionValue - 1)" 
+                class="flex-1 py-2.5 sm:py-3 border rounded-md transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-custom-yellow"
+                :class="[
+                    userSelections[policyInquiries[currentInquiryIndex].id] === (optionValue -1) ? 'bg-custom-blue border-custom-blue shadow-lg transform scale-105' : 'bg-gray-200 border-gray-300 hover:border-custom-blue',
+                ]">
+                <span class="block w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mx-auto"
+                      :class="[userSelections[policyInquiries[currentInquiryIndex].id] === (optionValue -1) ? 'bg-white' : 'bg-gray-500']">
+                </span>
+            </button>
+        </div>
+        </section>
+
+    <section v-if="activeView === 'result'" class="w-full max-w-lg mx-auto text-center p-3 sm:p-4">
+        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-xl mb-6">
+             <h2 class="text-2xl sm:text-3xl text-custom-blue mb-2 heading-font">診断結果</h2>
+            <p class="text-base sm:text-lg text-gray-700 mb-6">{{ targetPoliticianName }}との政策マッチ度</p>
+            <p class="text-lg sm:text-xl text-gray-600 mb-1 heading-font">総合マッチ度</p>
+            <p class="text-5xl sm:text-6xl font-bold text-custom-yellow mb-2">{{ overallMatchScore }}<span class="text-2xl sm:text-3xl">%</span></p>
+            <p class="text-sm sm:text-base text-gray-700 mb-4 italic">{{ matchComment }}</p>
+            
+            <a :href="generateTwitterShareLink" target="_blank" rel="noopener noreferrer"
+               class="inline-flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2.5 px-6 sm:py-3 sm:px-8 rounded-lg text-sm sm:text-base shadow-md hover:shadow-lg transition-colors duration-150 mb-6">
+                <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M22.46,6C21.69,6.35 20.86,6.58 20,6.69C20.88,6.16 21.56,5.32 21.88,4.31C21.05,4.81 20.13,5.16 19.16,5.36C18.37,4.5 17.26,4 16,4C13.65,4 11.73,5.92 11.73,8.29C11.73,8.63 11.77,8.96 11.84,9.27C8.28,9.09 5.11,7.38 3,4.79C2.63,5.42 2.42,6.16 2.42,6.94C2.42,8.43 3.17,9.75 4.33,10.5C3.62,10.48 2.96,10.3 2.38,10C2.38,10.03 2.38,10.05 2.38,10.08C2.38,12.11 3.86,13.85 5.82,14.24C5.46,14.34 5.08,14.39 4.69,14.39C4.42,14.39 4.15,14.36 3.89,14.31C4.43,16.03 6.02,17.26 7.86,17.29C6.39,18.45 4.59,19.12 2.64,19.12C2.29,19.12 1.94,19.1 1.61,19.04C3.44,20.29 5.7,21 8.12,21C16,21 20.33,14.46 20.33,8.79C20.33,8.6 20.33,8.42 20.32,8.23C21.11,7.63 21.85,6.87 22.46,6Z"></path></svg>
+                結果をシェア
+            </a>
+
+            <h3 class="text-lg sm:text-xl text-custom-blue mb-3 mt-4 pt-4 border-t border-gray-200 heading-font">分野別マッチ度</h3>
+            <div class="space-y-2 text-left">
+                <div v-for="categoryScoreData in detailedCategoryScores" :key="categoryScoreData.name"
+                     class="rounded-lg overflow-hidden border border-gray-200">
+                    
+                    <div @click="toggleCategoryExpansion(categoryScoreData.name)"
+                         class="p-2.5 sm:p-3 cursor-pointer flex items-center justify-between" 
+                         :style="{ backgroundColor: categoryScoreData.backgroundColor }">
+                        <span class="font-medium text-xs sm:text-sm heading-font" :style="{ color: categoryScoreData.textColor }">{{ categoryScoreData.name }}</span>
+                        <div class="flex items-center">
+                            <span class="font-semibold text-xs sm:text-sm mr-2" :style="{ color: categoryScoreData.textColor }">{{ categoryScoreData.matchRate }}%</span>
+                            <svg class="w-4 h-4 transition-transform duration-300" 
+                                 :class="{'transform rotate-180': expandedCategories[categoryScoreData.name]}"
+                                 fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+                                 :style="{ stroke: categoryScoreData.textColor }">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div class="px-2.5 sm:px-3 pt-1 pb-2" :style="{ backgroundColor: categoryScoreData.backgroundColor }">
+                        <div class="h-3 sm:h-4 w-full bg-gray-300 rounded-full overflow-hidden shadow-inner">
+                            <div class="h-full rounded-full transition-all duration-500 ease-out"
+                                 :style="{ width: categoryScoreData.matchRate + '%', backgroundColor: categoryScoreData.barColor }">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="accordion-content bg-white" 
+                         :class="{ 'open': expandedCategories[categoryScoreData.name] }">
+                        <div class="p-3 sm:p-4 border-t border-gray-200">
+                            <div class="mb-4 p-3 bg-gray-100 rounded-md">
+                                <p class="text-sm text-gray-700">{{ politicianStancesByCategory[categoryScoreData.name] || '詳細なスタンス情報は準備中です。' }}</p>
+                            </div>
+                            <h4 class="text-base font-semibold mb-3 text-custom-blue heading-font">関連する設問とあなたの回答</h4>
+                            <ul class="space-y-4">
+                                <li v-for="inquiry in getInquiriesForCategory(categoryScoreData.name)" :key="inquiry.id" class="pb-3 border-b border-gray-200 last:border-b-0">
+                                    <p class="text-sm font-medium text-gray-800 mb-2">{{ inquiry.text }}</p>
+                                    <div class="mb-2 p-2 bg-gray-100 rounded-md">
+                                        <p class="text-sm font-semibold text-gray-700 mb-1 heading-font">
+                                            足立康史の見解：{{ ['反対', '中立', '賛成'][inquiry.politicianAnswer] }}
+                                        </p>
+                                        <p class="text-sm text-gray-700">・{{ inquiry.politicianSpecificPolicyDetails || '個別政策は準備中です。'}}</p>
+                                    </div>
+                                    <div class="p-2 bg-gray-100 rounded-md">
+                                        <p class="text-sm text-gray-700"><span class="font-semibold">あなたの回答：</span>{{ ['反対', '中立', '賛成'][userSelections[inquiry.id]] }}</p>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <button @click="activeView = 'top'; resetAssessment();"
+                class="block mx-auto text-custom-blue hover:text-custom-yellow font-medium mt-6 text-sm sm:text-base">
+            もう一度診断する
+        </button>
+    </section>
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted, onBeforeUnmount, watch } = Vue;
+
+createApp({
+    setup() {
+        const activeView = ref('top');
+        const targetPoliticianName = ref('足立康史'); // 適宜変更してください
+
+        // 新しい設問データ
+        const policyInquiries = ref([
+            // 1. 経済・財政政策（手取りを増やす）
+            { id: 'q1', text: '所得税の基礎控除はさらに引き上げるべきだと思いますか？', category: '経済・財政政策（手取りを増やす）', politicianAnswer: 2, politicianSpecificPolicyDetails: '個人の可処分所得増加のため、基礎控除の拡大を検討。' },
+            { id: 'q2', text: 'ガソリンの暫定税率（上乗せ部分）は廃止すべきだと思いますか？', category: '経済・財政政策（手取りを増やす）', politicianAnswer: 0, politicianSpecificPolicyDetails: '国民負担軽減のため、暫定税率の廃止またはトリガー条項凍結解除を主張。' },
+            { id: 'q3', text: '給付付き税額控除（負担に応じて給付する制度）は導入すべきだと思いますか？', category: '経済・財政政策（手取りを増やす）', politicianAnswer: 1, politicianSpecificPolicyDetails: '低所得者層支援のため、給付付き税額控除の導入を検討。' },
+            { id: 'q4', text: '財務省・国税庁・社会保険庁の機能を統合する「歳入庁」を創設すべきだと思いますか？', category: '経済・財政政策（手取りを増やす）', politicianAnswer: 2, politicianSpecificPolicyDetails: '徴税効率化と公平性向上のため、歳入庁創設を支持。' },
+            { id: 'q5', text: '財政支出による経済活性化より、税制改革による手取り増加を優先すべきだと思いますか？', category: '経済・財政政策（手取りを増やす）', politicianAnswer: 1, politicianSpecificPolicyDetails: '持続的な経済成長のため、減税による手取り増と効果的な財政支出のバランスを重視。' },
+            { id: 'q6', text: '中間層への再分配を強化するため、税制の見直しが必要だと思いますか？', category: '経済・財政政策（手取りを増やす）', politicianAnswer: 2, politicianSpecificPolicyDetails: '格差是正と中間層支援のため、累進課税強化を含む税制見直しを検討。' },
+            { id: 'q7', text: '消費税率は現状よりも下げるべきだと思いますか？', category: '経済・財政政策（手取りを増やす）', politicianAnswer: 0, politicianSpecificPolicyDetails: '景気対策と生活支援のため、一時的な消費税減税も選択肢。' },
+            // 2. 統治機構改革・デジタル（大阪関西を開く）
+            { id: 'q8', text: '大都市ごとに柔軟な行政制度（大阪都構想など）を認めるべきだと思いますか？', category: '統治機構改革・デジタル（大阪関西を開く）', politicianAnswer: 2, politicianSpecificPolicyDetails: '大都市の特性に応じた行政運営のため、特別自治制度導入を支持。' },
+            { id: 'q9', text: '地方自治制度の抜本改革として「道州制」を導入すべきだと思いますか？', category: '統治機構改革・デジタル（大阪関西を開く）', politicianAnswer: 1, politicianSpecificPolicyDetails: '広域行政の効率化のため、道州制導入を中長期的な課題として検討。' },
+            { id: 'q10', text: '統治機構改革にはデジタル技術の活用が不可欠だと思いますか？', category: '統治機構改革・デジタル（大阪関西を開く）', politicianAnswer: 2, politicianSpecificPolicyDetails: '行政効率化と住民サービス向上のため、デジタル技術の積極活用を推進。' },
+            // 3. 安全保障・エネルギー（日本を再生する）
+            { id: 'q11', text: '憲法9条の改正を通じて、自衛隊の明記や専守防衛の見直しを行うべきだと思いますか？', category: '安全保障・エネルギー（日本を再生する）', politicianAnswer: 2, politicianSpecificPolicyDetails: '現実的な安全保障環境に対応するため、憲法への自衛隊明記と防衛政策の見直しを議論。' },
+            { id: 'q12', text: '原子力発電は今後も日本の重要なエネルギー源として維持・推進すべきだと思いますか？', category: '安全保障・エネルギー（日本を再生する）', politicianAnswer: 1, politicianSpecificPolicyDetails: 'エネルギー安定供給と脱炭素化のため、安全確保を大前提に原子力を活用。再エネも推進。' },
+            { id: 'q13', text: '日本の名目GDP成長率4%以上を目指すためには、規制緩和や成長投資を拡大すべきだと思いますか？', category: '安全保障・エネルギー（日本を再生する）', politicianAnswer: 2, politicianSpecificPolicyDetails: '経済再生のため、大胆な規制緩和と未来への成長投資を積極的に行う。' },
+            // 4. 価値観・社会政策（日本社会を守る）
+            { id: 'q14', text: '皇室や伝統文化の保護は国の基本的責務だと思いますか？', category: '価値観・社会政策（日本社会を守る）', politicianAnswer: 2, politicianSpecificPolicyDetails: '日本の歴史と文化の継承のため、皇室と伝統文化の保護・支援を強化。' },
+            { id: 'q15', text: '選択的夫婦別姓には賛成ですか？', category: '価値観・社会政策（日本社会を守る）', politicianAnswer: 0, politicianSpecificPolicyDetails: '多様な家族のあり方を尊重しつつ、国民的議論を深める必要あり。現状は慎重。' },
+            { id: 'q16', text: '婚姻時に旧姓を法的に使い続けられる制度（婚前氏続称）は導入すべきだと思いますか？', category: '価値観・社会政策（日本社会を守る）', politicianAnswer: 1, politicianSpecificPolicyDetails: '旧姓使用の利便性向上のため、法制度化を前向きに検討。' },
+            { id: 'q17', text: '日本社会の安定のため、外国人居住者への日本語教育などを拡充すべきだと思いますか？', category: '価値観・社会政策（日本社会を守る）', politicianAnswer: 2, politicianSpecificPolicyDetails: '共生社会実現のため、外国人への日本語教育や生活支援を充実。' },
+            // 5. 政治改革（新しい国会をつくる）
+            { id: 'q18', text: '党首討論や自由討論などを増やして、国会の審議をもっと活性化すべきだと思いますか？', category: '政治改革（新しい国会をつくる）', politicianAnswer: 2, politicianSpecificPolicyDetails: '建設的な政策論争のため、党首討論などの機会を増やし国会審議を活性化。' },
+            { id: 'q19', text: '衆議院と参議院の合同審査会を制度的に拡充すべきだと思いますか？', category: '政治改革（新しい国会をつくる）', politicianAnswer: 2, politicianSpecificPolicyDetails: '効率的かつ多角的な審議のため、両院合同審査会の活用を推進。' },
+            { id: 'q20', text: '国会議員の政治資金の使い道をもっと厳しくチェックすべきだと思いますか？', category: '政治改革（新しい国会をつくる）', politicianAnswer: 2, politicianSpecificPolicyDetails: '政治への信頼回復のため、政治資金規正法の改正と透明性向上を強く求める。' },
+            { id: 'q21', text: '衆参ねじれ（ハングパーラメント）を前向きに活用する国会運営は可能だと思いますか？', category: '政治改革（新しい国会をつくる）', politicianAnswer: 1, politicianSpecificPolicyDetails: '多様な民意を反映するため、ねじれ国会でも建設的な対話と協調を模索。' },
+        ]);
+        
+        const politicianStancesByCategory = ref({
+            '経済・財政政策（手取りを増やす）': '国民の可処分所得を増やし、経済の好循環を生み出すことを最優先とします。大胆な税制改革と規制緩和を通じて、成長力を高めます。',
+            '統治機構改革・デジタル（大阪関西を開く）': '中央集権的な体制を見直し、地方が自律的に発展できる仕組みを構築します。デジタル技術を最大限に活用し、行政の効率化と住民サービスの向上を目指します。特に関西圏のポテンシャルを最大限に引き出します。',
+            '安全保障・エネルギー（日本を再生する）': '厳しさを増す国際情勢に対応するため、現実的な安全保障政策を推進します。エネルギー自給率の向上と安定供給の確保も喫緊の課題です。日本の国力再生に全力を尽くします。',
+            '価値観・社会政策（日本社会を守る）': '日本の良き伝統や文化を守りつつ、多様な価値観が尊重される社会を目指します。家族の絆や地域社会の連帯を重視し、安定した社会基盤を構築します。',
+            '政治改革（新しい国会をつくる）': '国民の信頼を得られる透明で公正な政治を実現します。国会が本来の役割である建設的な議論の場となるよう、改革を進めます。'
+        });
+
+        const userSelections = ref({});
+        const currentInquiryIndex = ref(0);
+        const overallMatchScore = ref(0);
+        const detailedCategoryScores = ref([]);
+        const expandedCategories = ref({});
+
+        const progressBarRadius = 40;
+        const progressBarCircumference = 2 * Math.PI * progressBarRadius;
+        const progressBarOffset = computed(() => {
+            if (policyInquiries.value.length === 0) return progressBarCircumference;
+            return progressBarCircumference - (currentInquiryIndex.value / policyInquiries.value.length) * progressBarCircumference;
+        });
+
+        const beginAssessment = () => { resetAssessment(); activeView.value = 'quiz'; };
+        const resetAssessment = () => { userSelections.value = {}; currentInquiryIndex.value = 0; overallMatchScore.value = 0; detailedCategoryScores.value = []; expandedCategories.value = {}; };
+        
+        const handleSelection = (selectionIndex) => {
+            if (activeView.value !== 'quiz') return;
+            const currentInquiryId = policyInquiries.value[currentInquiryIndex.value].id;
+            userSelections.value[currentInquiryId] = selectionIndex;
+            setTimeout(() => {
+                if (currentInquiryIndex.value < policyInquiries.value.length - 1) {
+                    currentInquiryIndex.value++;
+                } else {
+                    displayResultsView();
+                }
+            }, 250);
+        };
+
+        const returnToPreviousInquiry = () => { if (currentInquiryIndex.value > 0) { currentInquiryIndex.value--; } };
+        
+        const computeMatchScores = () => { 
+            let totalAcquiredScore = 0; // ユーザーが獲得した合計スコア
+            const categoryDetails = {}; // カテゴリごとのスコアと設問数を集計
+            const pointsPerPerfectMatch = 2; // 1設問あたりで完全に一致した場合の獲得ポイント
+
+            policyInquiries.value.forEach(inquiry => {
+                const userResponseValue = userSelections.value[inquiry.id] === undefined ? 1 : userSelections.value[inquiry.id]; // 未選択時は中立(1)扱い
+                const politicianResponseValue = inquiry.politicianAnswer; // 0, 1, or 2
+                const difference = Math.abs(userResponseValue - politicianResponseValue);
+                const acquiredScoreForThisInquiry = pointsPerPerfectMatch - difference; // この設問での獲得ポイント
+                totalAcquiredScore += acquiredScoreForThisInquiry;
+
+                if (!categoryDetails[inquiry.category]) {
+                    categoryDetails[inquiry.category] = { sumAcquired: 0, count: 0 };
+                }
+                categoryDetails[inquiry.category].sumAcquired += acquiredScoreForThisInquiry;
+                categoryDetails[inquiry.category].count++;
+            });
+
+            const maxPossibleTotalAcquiredScore = policyInquiries.value.length * pointsPerPerfectMatch; // 全設問で獲得可能な最大ポイント
+            overallMatchScore.value = maxPossibleTotalAcquiredScore === 0 ? 0 : Math.max(0, Math.round((totalAcquiredScore / maxPossibleTotalAcquiredScore) * 100));
+
+            const calculatedScores = [];
+            const categoryDisplayColors = {
+                '経済・財政政策（手取りを増やす）': { bar: '#EF4444', bg: '#FEE2E2', text: '#B91C1C' },
+                '統治機構改革・デジタル（大阪関西を開く）': { bar: '#3B82F6', bg: '#DBEAFE', text: '#1D4ED8' },
+                '安全保障・エネルギー（日本を再生する）': { bar: '#10B981', bg: '#D1FAE5', text: '#047857' },
+                '価値観・社会政策（日本社会を守る）': { bar: '#F59E0B', bg: '#FEF3C7', text: '#B45309' },
+                '政治改革（新しい国会をつくる）': { bar: '#6366F1', bg: '#E0E7FF', text: '#4338CA' },
+            };
+
+            for (const categoryTitle in categoryDetails) {
+                const categoryData = categoryDetails[categoryTitle];
+                const maxPossibleCategoryAcquiredScore = categoryData.count * pointsPerPerfectMatch;
+                const categoryScoreValue = maxPossibleCategoryAcquiredScore === 0 ? 0 : Math.max(0, Math.round((categoryData.sumAcquired / maxPossibleCategoryAcquiredScore) * 100));
+                const displayColors = categoryDisplayColors[categoryTitle] || { bar: '#6B7280', bg: '#F3F4F6', text: '#4B5563' };
+                calculatedScores.push({
+                    name: categoryTitle,
+                    matchRate: categoryScoreValue,
+                    barColor: displayColors.bar,
+                    backgroundColor: displayColors.bg,
+                    textColor: displayColors.text
+                });
+            }
+            detailedCategoryScores.value = calculatedScores.sort((a,b) => b.matchRate - a.matchRate);
+        };
+        const displayResultsView = () => { computeMatchScores(); activeView.value = 'result'; };
+        const generateTwitterShareLink = computed(() => { 
+            const shareText = `${targetPoliticianName.value}との政策マッチ度は${overallMatchScore.value}%でした！ ${matchComment.value}\nあなたもチェックしてみよう！\n#足立康史`;
+            const appUrl = window.location.origin + window.location.pathname;
+            return `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(appUrl)}`;
+        });
+        const matchComment = computed(() => { 
+            const score = overallMatchScore.value;
+            if (score >= 90) return "素晴らしい！ほぼ完璧に一致していますね！";
+            if (score >= 75) return "かなり高い一致度です！考え方が近いですね。";
+            if (score >= 60) return "まずまずの一致度。共通点も多いようです。";
+            if (score >= 40) return "一部で考え方が異なる点もあるようですが、共通理解の余地もありそうです。";
+            if (score >= 20) return "考え方が異なる部分が多いようです。じっくり政策を比較してみましょう。";
+            return "残念ながら、多くの点で考え方が異なるようです。";
+        });
+
+        const toggleCategoryExpansion = (categoryName) => {
+            expandedCategories.value[categoryName] = !expandedCategories.value[categoryName];
+        };
+
+        const getInquiriesForCategory = (categoryName) => {
+            return policyInquiries.value.filter(inq => inq.category === categoryName);
+        };
+        
+        const handleKeyPress = (event) => {
+            if (activeView.value === 'quiz') {
+                const keyNumber = parseInt(event.key);
+                if (keyNumber >= 1 && keyNumber <= 3) { // 1, 2, 3 のキーに対応
+                    handleSelection(keyNumber - 1); // 0, 1, 2 に変換して渡す
+                }
+            }
+        };
+
+        onMounted(() => {
+            window.addEventListener('keydown', handleKeyPress);
+        });
+
+        onBeforeUnmount(() => {
+            window.removeEventListener('keydown', handleKeyPress);
+        });
+        watch(activeView, (newView) => { /* ... (変更なし) ... */ });
+
+        return {
+            activeView, targetPoliticianName, policyInquiries, politicianStancesByCategory,
+            userSelections, currentInquiryIndex, overallMatchScore, detailedCategoryScores,
+            beginAssessment, handleSelection, returnToPreviousInquiry,
+            displayResultsView, generateTwitterShareLink, resetAssessment,
+            progressBarCircumference, progressBarOffset, matchComment,
+            expandedCategories, toggleCategoryExpansion, getInquiriesForCategory
+        };
+    }
+}).mount('#app');
+</script>
+
+</body>
+</html>
